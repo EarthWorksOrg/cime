@@ -520,6 +520,13 @@ ice_shortwave.o : ice_shortwave.F90
 endif
 endif
 
+ifeq ($(COMP_NAME),mpaso)
+  ifeq ($(strip $(COMPILER)),nvhpc)
+  # mpas ocean files need gpuflags
+    FFLAGS +=$(GPUFLAGS)
+  endif
+endif
+
 ifeq ($(COMP_NAME),cam)
   # These RRTMG files take an extraordinarily long time to compile with optimization.
   # Until mods are made to read the data from files, just remove optimization from
@@ -563,11 +570,11 @@ ifdef MPAS_LIBDIR
 .PHONY: libmpas
 # The CASEROOT, COMPILER and MACH are added so that the Depends file could be visible to
 # the MPAS dycore.
-# The GPUFLAGS is added so that the GPU flags defined in ccs_config_cesm could also be
+# The OPENACC_GPU_FLAGS is added so that the GPU flags defined in ccs_config_cesm could also be
 # used to build the MPAS dycore if needed.
 libmpas: cam_abortutils.o physconst.o
 	$(MAKE) -C $(MPAS_LIBDIR) CC="$(CC)" FC="$(FC)" PIODEF="$(PIODEF)" \
-	FFLAGS='$(FREEFLAGS) $(FFLAGS)' GPUFLAGS='$(GPUFLAGS)' \
+	FFLAGS='$(FREEFLAGS) $(FFLAGS)' OPENACC_GPU_FLAGS='$(OPENACC_GPU_FLAGS)' \
 	CASEROOT='$(CASEROOT)' COMPILER='$(COMPILER)' MACH='$(MACH)' \
 	FCINCLUDES='$(INCLDIR) $(INCS) -I$(ABS_INSTALL_SHAREDPATH)/include -I$(ABS_ESMF_PATH)/include'
 
@@ -576,7 +583,6 @@ dyn_grid.o: libmpas
 endif
 
 endif
-
 
 # System libraries (netcdf, mpi, pnetcdf, esmf, trilinos, etc.)
 ifeq ($(NETCDF_SEPARATE), FALSE)
@@ -739,6 +745,7 @@ CMAKE_ENV_VARS += CC=$(CC) \
 		  FC=$(FC) \
 		  LDFLAGS="$(LDFLAGS)"
 
+F90_LDFLAGS += $(FFLAGS)
 
 # We declare GLCMakefile to be a phony target so that cmake is
 # always rerun whenever invoking 'make GLCMakefile'; this is

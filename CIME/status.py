@@ -39,22 +39,30 @@ def append_case_status(phase, status, msg=None, caseroot=".", gitinterface=None)
     if gitinterface:
         filelist = gitinterface.git_operation(
             "ls-files", "--deleted", "--exclude-standard"
-        ).splitlines()
+        )
         # First delete files that have been removed
-        for f in filelist:
-            logger.debug("removing file {}".format(f))
-            gitinterface.git_operation("rm", f)
+        if filelist:
+            for f in filelist.splitlines():
+                logger.debug("removing file {}".format(f))
+                gitinterface.git_operation("rm", f)
         filelist = gitinterface.git_operation(
             "ls-files", "--others", "--modified", "--exclude-standard"
-        ).splitlines()
+        )
         # Files that should not be added should have been excluded by the .gitignore file
-        for f in filelist:
-            logger.debug("adding file {}".format(f))
-            gitinterface.git_operation("add", f)
+        if filelist:
+            for f in filelist.splitlines():
+                logger.debug("adding file {}".format(f))
+                gitinterface.git_operation("add", f)
         msg = msg if msg else " no message provided"
-        gitinterface.git_operation("commit", "-m", '"' + msg + '"')
+        push = True
+        try:
+            gitinterface.git_operation("commit", "-m", '"' + msg + '"')
+        except Exception as e:
+            print(e)
+            push = False
+
         remote = gitinterface.git_operation("remote")
-        if remote:
+        if remote and push:
             with Timeout(30):
                 gitinterface.git_operation("push", remote)
 

@@ -17,6 +17,9 @@ class ERS(SystemTestsCommon):
 
     def _ers_first_phase(self):
         self._rest_n = self._set_restart_interval()
+        # set_restart_interval can change case settings that buildnmls may depend on
+        # so ensure buildnmls will not be skipped during case_run
+        self._skip_pnl = False
         self.run_indv()
 
     def _ers_second_phase(self):
@@ -36,7 +39,13 @@ class ERS(SystemTestsCommon):
                 pfile,
                 os.path.join(os.path.dirname(pfile), "run1." + os.path.basename(pfile)),
             )
+        ninst = self._case.get_value("NINST")
+        drvrest = "rpointer.cpl"
+        if ninst is not None and ninst > 1:
+            drvrest += "_0001"
+        drvrest += self._rest_time
 
+        self._set_drv_restart_pointer(drvrest)
         self._case.set_value("HIST_N", stop_n)
         self._case.set_value("STOP_N", stop_new)
         self._case.set_value("CONTINUE_RUN", True)

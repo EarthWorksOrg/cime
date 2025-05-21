@@ -212,13 +212,10 @@ def generate_makefile_macro(case, caseroot):
         fd.write(all_output)
 
 
+# pylint:disable=unused-argument
 def get_standard_makefile_args(case, shared_lib=False):
     make_args = "CIME_MODEL={} ".format(case.get_value("MODEL"))
     make_args += " SMP={} ".format(stringify_bool(case.get_build_threaded()))
-    expect(
-        not (uses_kokkos(case) and not shared_lib),
-        "Kokkos is not supported for classic Makefile build system",
-    )
     for var in _CMD_ARGS_FOR_BUILD:
         make_args += xml_to_make_variable(case, var)
 
@@ -247,18 +244,10 @@ def get_standard_cmake_args(case, sharedpath):
     )
     # check settings for GPU
     gpu_type = case.get_value("GPU_TYPE")
-    gpu_offload = case.get_value("GPU_OFFLOAD")
-    if gpu_type != "none":
-        expect(
-            gpu_offload != "none",
-            "Both GPU_TYPE and GPU_OFFLOAD must be defined if either is",
-        )
-        cmake_args += f" -DGPU_TYPE={gpu_type} -DGPU_OFFLOAD={gpu_offload}"
-    else:
-        expect(
-            gpu_offload == "none",
-            "Both GPU_TYPE and GPU_OFFLOAD must be defined if either is",
-        )
+    openacc_gpu_offload = case.get_value("OPENACC_GPU_OFFLOAD")
+    openmp_gpu_offload = case.get_value("OPENMP_GPU_OFFLOAD")
+    kokkos_gpu_offload = case.get_value("KOKKOS_GPU_OFFLOAD")
+    cmake_args += f" -DGPU_TYPE={gpu_type} -DOPENACC_GPU_OFFLOAD={openacc_gpu_offload} -DOPENMP_GPU_OFFLOAD={openmp_gpu_offload} -DKOKKOS_GPU_OFFLOAD={kokkos_gpu_offload} "
 
     ocn_model = case.get_value("COMP_OCN")
     atm_dycore = case.get_value("CAM_DYCORE")
@@ -766,7 +755,7 @@ def _build_libraries(
     if mpilib == "mpi-serial":
         libs.insert(0, mpilib)
 
-    if uses_kokkos(case):
+    if uses_kokkos(case) and comp_interface != "nuopc":
         libs.append("kokkos")
 
     # Build shared code of CDEPS nuopc data models

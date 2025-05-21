@@ -29,6 +29,7 @@ from CIME.utils import (
     get_timestamp,
     get_cime_default_driver,
     clear_folder,
+    CIMEError,
 )
 from CIME.config import Config
 from CIME.test_status import *
@@ -46,6 +47,7 @@ from CIME.locked_files import lock_file
 from CIME.cs_status_creator import create_cs_status
 from CIME.hist_utils import generate_teststatus
 from CIME.build import post_build
+from CIME.SystemTests.test_mods import find_test_mods
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +196,7 @@ class TestScheduler(object):
         save_timing=False,
         queue=None,
         allow_baseline_overwrite=False,
+        skip_tests_with_existing_baselines=False,
         output_root=None,
         force_procs=None,
         force_threads=None,
@@ -225,6 +228,7 @@ class TestScheduler(object):
         self._input_dir = input_dir
         self._pesfile = pesfile
         self._allow_baseline_overwrite = allow_baseline_overwrite
+        self._skip_tests_with_existing_baselines = skip_tests_with_existing_baselines
         self._single_exe = single_exe
         if self._single_exe:
             self._allow_pnl = True
@@ -346,6 +350,8 @@ class TestScheduler(object):
                     self._baseline_root, self._baseline_gen_name
                 )
                 existing_baselines = []
+                if skip_tests_with_existing_baselines:
+                    tests_to_skip = []
                 for test_name in test_names:
                     test_baseline = os.path.join(full_baseline_dir, test_name)
                     if os.path.isdir(test_baseline):
@@ -355,11 +361,21 @@ class TestScheduler(object):
                                 clear_folder(os.path.join(test_baseline, "CaseDocs"))
                             else:
                                 clear_folder(test_baseline)
+                        elif skip_tests_with_existing_baselines:
+                            tests_to_skip.append(test_name)
                 expect(
-                    allow_baseline_overwrite or len(existing_baselines) == 0,
+                    allow_baseline_overwrite
+                    or len(existing_baselines) == 0
+                    or skip_tests_with_existing_baselines,
                     "Baseline directories already exists {}\n"
-                    "Use -o to avoid this error".format(existing_baselines),
+                    "Use -o or --skip-tests-with-existing-baselines to avoid this error".format(
+                        existing_baselines
+                    ),
                 )
+                if skip_tests_with_existing_baselines:
+                    test_names = [
+                        test for test in test_names if test not in tests_to_skip
+                    ]
 
         if self._config.sort_tests:
             _order_tests_by_runtime(test_names, self._baseline_root)
@@ -670,18 +686,6 @@ class TestScheduler(object):
                 elif case_opt.startswith("P"):
                     pesize = case_opt[1:]
                     create_newcase_cmd += " --pecount {}".format(pesize)
-                elif case_opt.startswith("G"):
-                    if "-" in case_opt:
-                        ngpus_per_node, gpu_type, gpu_offload = case_opt[1:].split("-")
-                    else:
-                        error = "GPU test argument format is ngpus_per_node-gpu_type-gpu_offload"
-                        self._log_output(test, error)
-                        return False, error
-                    create_newcase_cmd += (
-                        " --ngpus-per-node {} --gpu-type {} --gpu-offload {}".format(
-                            ngpus_per_node, gpu_type, gpu_offload
-                        )
-                    )
                 elif case_opt.startswith("V"):
                     driver = case_opt[1:]
 
@@ -699,34 +703,18 @@ class TestScheduler(object):
         if test_mods is not None:
             create_newcase_cmd += " --user-mods-dir "
 
-            for one_test_mod in test_mods:  # pylint: disable=not-an-iterable
-                if one_test_mod.find("/") != -1:
-                    (component, modspath) = one_test_mod.split("/", 1)
-                else:
-                    error = "Missing testmod component. Testmods are specified as '${component}-${testmod}'"
-                    self._log_output(test, error)
-                    return False, error
+            try:
+                test_mods_paths = find_test_mods(self._cime_driver, test_mods)
+            except CIMEError as e:
+                error = f"{e}"
 
-                files = Files(comp_interface=driver)
-                testmods_dir = files.get_value(
-                    "TESTS_MODS_DIR", {"component": component}
-                )
-                test_mod_file = os.path.join(testmods_dir, component, modspath)
-                # if no testmod is found check if a usermod of the same name exists and
-                # use it if it does.
-                if not os.path.exists(test_mod_file):
-                    usermods_dir = files.get_value(
-                        "USER_MODS_DIR", {"component": component}
-                    )
-                    test_mod_file = os.path.join(usermods_dir, modspath)
-                    if not os.path.exists(test_mod_file):
-                        error = "Missing testmod file '{}', checked {} and {}".format(
-                            modspath, testmods_dir, usermods_dir
-                        )
-                        self._log_output(test, error)
-                        return False, error
+                self._log_output(test, error)
 
-                create_newcase_cmd += "{} ".format(test_mod_file)
+                return False, error
+            else:
+                test_mods_paths = " ".join(test_mods_paths)
+
+                create_newcase_cmd += f"{test_mods_paths}"
 
         # create_test mpilib option overrides default but not explicitly set case_opt mpilib
         if mpilib is None and self._mpilib is not None:

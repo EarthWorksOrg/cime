@@ -3,7 +3,6 @@ import queue
 import os, time, threading, socket, signal, shutil, glob
 
 # pylint: disable=import-error
-from distutils.spawn import find_executable
 import logging
 import xml.etree.ElementTree as xmlet
 
@@ -22,6 +21,7 @@ SLEEP_INTERVAL_SEC = 0.1
 ###############################################################################
 def signal_handler(*_):
     ###############################################################################
+    logging.warning("RECEIVED SIGNAL!")
     global SIGNAL_RECEIVED
     SIGNAL_RECEIVED = True
 
@@ -38,7 +38,7 @@ def get_test_time(test_path):
     ###############################################################################
     ts = TestStatus(test_dir=test_path)
     comment = ts.get_comment(RUN_PHASE)
-    if comment is None or "time=" not in comment:
+    if "time=" not in comment:
         logging.warning("No run-phase time data found in {}".format(test_path))
         return 0
     else:
@@ -516,7 +516,7 @@ CurlOptions: CURLOPT_SSL_VERIFYPEER_OFF;CURLOPT_SSL_VERIFYHOST_OFF
             hostname,
             cdash_build_name,
             cdash_project,
-            find_executable("scp"),
+            shutil.which("scp"),
             cdash_timestamp,
             drop_method,
         )

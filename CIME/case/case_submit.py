@@ -64,12 +64,15 @@ def _submit(
         )
         # only checks for the first instance in a multidriver case
         if case.get_value("COMP_INTERFACE") == "nuopc":
-            rpointer = "rpointer.cpl"
+            rpointer = case.get_value("DRV_RESTART_POINTER")
+            if not rpointer:
+                rpointer = "rpointer.cpl"
+                if case.get_value("NINST") > 1:
+                    rpointer = rpointer + "_0001"
         else:
             rpointer = "rpointer.drv"
-        # Variable MULTI_DRIVER is always true for nuopc so we need to also check NINST > 1
-        if case.get_value("MULTI_DRIVER") and case.get_value("NINST") > 1:
-            rpointer = rpointer + "_0001"
+            if case.get_value("MULTI_DRIVER"):
+                rpointer = rpointer + "_0001"
         expect(
             os.path.exists(os.path.join(rundir, rpointer)),
             "CONTINUE_RUN is true but this case does not appear to have restart files staged in {} {}".format(
@@ -284,7 +287,7 @@ def submit(
             functor,
             "case.submit",
             caseroot=caseroot,
-            custom_success_msg_functor=lambda x: x.split(":")[-1],
+            custom_success_msg_functor=lambda x: x,
             is_batch=is_batch,
             gitinterface=self._gitinterface,
         )
