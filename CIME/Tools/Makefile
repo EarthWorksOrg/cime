@@ -523,7 +523,7 @@ endif
 ifeq ($(COMP_NAME),mpaso)
   ifeq ($(strip $(COMPILER)),nvhpc)
   # mpas ocean files need gpuflags
-    FFLAGS +=$(MPASO_OPENACC_GPU_FLAGS)
+    FFLAGS +=$(OPENACC_GPU_FLAGS)
   endif
 endif
 
