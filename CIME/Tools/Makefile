@@ -116,6 +116,16 @@ ifdef USER_INCLDIR
   INCLDIR += $(USER_INCLDIR)
 endif
 
+FTORCH_DIR = $(SHAREDLIBROOT)/$(SHAREDPATH)/FTorch/
+ifneq "$(wildcard $(FTORCH_DIR) )" ""
+  INCLDIR  += -I$(FTORCH_DIR)/modules -I$(FTORCH_DIR)
+  SLIBS  +=  -Wl,-rpath,$(FTORCH_DIR) -L$(FTORCH_DIR) -lftorch_wrapper
+endif
+ifeq ($(strip $(USE_FTORCH)), TRUE)
+  CPPDEFS  += -DUSE_FTORCH
+  SLIBS  +=  -Wl,-rpath,$(TORCH_DIR)/lib -L$(TORCH_DIR)/lib -ltorch_cpu -lc10 -lstdc++ -Wl,-rpath,$(FTORCH_DIR)/src -L$(FTORCH_DIR)/src -lftorch
+endif
+
 ifdef FSTDLIB_PKGCONFIG
   STDLIB_INC  := `pkg-config --cflags fortran_stdlib`
   STDLIB_LIBS := `pkg-config --libs fortran_stdlib`
@@ -512,21 +522,6 @@ ifeq ($(strip $(COMP_ATM)),cam)
   endif
 endif
 
-ifeq ($(COMP_NAME),mpassi)
-ifeq ($(strip $(COMPILER)),gnu)
-# mpas seaice files that can't compile with optimization using gnu
-ice_shortwave.o : ice_shortwave.F90
-	$(FC) -c $(FPPFLAGS) $(INCLDIR) $(INCS) $(FREEFLAGS) $(FFLAGS) $(FFLAGS_NOOPT) $<
-endif
-endif
-
-# ifeq ($(COMP_NAME),mpaso)
-#   ifeq ($(strip $(COMPILER)),nvhpc)
-#   # mpas ocean files need gpuflags
-#     FFLAGS +=$(OPENACC_GPU_FLAGS)
-#   endif
-# endif
-
 ifeq ($(COMP_NAME),cam)
   # These RRTMG files take an extraordinarily long time to compile with optimization.
   # Until mods are made to read the data from files, just remove optimization from
@@ -758,6 +753,10 @@ GLCMakefile:
 $(PIO_LIBDIR)/Makefile:
 	cd $(PIO_LIBDIR); \
 	$(CMAKE_ENV_VARS) cmake $(CMAKE_OPTS) $(PIO_SRC_DIR)
+
+FTMakefile:
+	cd $(FTORCH_DIR)
+	$(CMAKE_ENV_VARS) cmake $(CMAKE_OPTS) $(FTORCH_SRC_DIR)
 
 #-------------------------------------------------------------------------------
 # Build & include dependency files
